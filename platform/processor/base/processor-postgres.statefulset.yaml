@@ -19,8 +19,8 @@ spec:
       labels:
         app.kubernetes.io/name: processor-postgres
     spec:
-      # Run as the image's postgres user (70) from the start: as root, the entrypoint switches
-      # users with gosu, which hangs on the node's kernel (7.0) and PostgreSQL never starts.
+      # Run as the image's postgres user (70) from the start: no root in the container, and the
+      # entrypoint skips switching users with gosu.
       securityContext:
         runAsUser: 70
         runAsGroup: 70
