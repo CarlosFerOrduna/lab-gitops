@@ -52,6 +52,14 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql
+          # Until it succeeds once, liveness and readiness do not run: initdb or a crash recovery
+          # can take a while, and a liveness restart in the middle leaves the volume half done.
+          startupProbe:
+            exec:
+              command:
+                ["sh", "-c", 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
+            periodSeconds: 5
+            failureThreshold: 60
           readinessProbe:
             exec:
               command:
