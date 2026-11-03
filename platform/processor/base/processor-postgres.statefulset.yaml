@@ -19,6 +19,12 @@ spec:
       labels:
         app.kubernetes.io/name: processor-postgres
     spec:
+      # Run as the image's postgres user (70) from the start: as root, the entrypoint switches
+      # users with gosu, which hangs on the node's kernel (7.0) and PostgreSQL never starts.
+      securityContext:
+        runAsUser: 70
+        runAsGroup: 70
+        runAsNonRoot: true
       containers:
         - name: postgres
           image: postgres:18.6-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5
@@ -57,6 +63,10 @@ spec:
                 ["sh", "-c", 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
             periodSeconds: 10
             failureThreshold: 6
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ['ALL']
           resources:
             requests:
               cpu: 100m
