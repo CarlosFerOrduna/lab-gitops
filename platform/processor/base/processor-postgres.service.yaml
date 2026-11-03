@@ -1,0 +1,15 @@
+# Headless: the DNS name resolves straight to the pod of the StatefulSet.
+apiVersion: v1
+kind: Service
+metadata:
+  name: processor-postgres
+  labels:
+    app.kubernetes.io/name: processor-postgres
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: processor-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres

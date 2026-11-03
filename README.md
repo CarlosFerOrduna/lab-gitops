@@ -7,12 +7,43 @@ The desired state of the lab clusters. ArgoCD applies whatever is in this reposi
 Today:
 
 - `system/sealed-secrets/base/`: the Sealed Secrets controller v0.41.2, in `kube-system`.
+- `namespaces/platform/`: the `platform` namespace, apart from the apps in it, so deleting or pruning an app never deletes the namespace and the volumes of its databases.
+- `platform/processor/base/`: the processor's PostgreSQL (StatefulSet with a 1 Gi volume, headless Service), its configuration (ConfigMap) and its password (SealedSecret).
 
 Until ArgoCD arrives, changes are applied by hand from the bastion, always from a commit of this repository on GitHub, never from a local copy:
 
 ```bash
 ssh lab-bastion kubectl apply -k 'https://github.com/CarlosFerOrduna/lab-gitops//system/sealed-secrets/base?ref=main'
 ```
+
+Apply a namespace before the apps in it:
+
+```bash
+ssh lab-bastion kubectl apply -k 'https://github.com/CarlosFerOrduna/lab-gitops//namespaces/platform?ref=main'
+ssh lab-bastion kubectl apply -k 'https://github.com/CarlosFerOrduna/lab-gitops//platform/processor/base?ref=main'
+```
+
+### The processor's database
+
+- PostgreSQL 18 keeps its data under `/var/lib/postgresql` (`PGDATA` is `/var/lib/postgresql/18/docker`): that is where the volume is mounted.
+- The StatefulSet keeps its volume when it is deleted or scaled down (`persistentVolumeClaimRetentionPolicy: Retain`). Deleting the namespace still deletes it.
+- The volume asks for 1 Gi, but `local-path` does not enforce that size: it is a directory on the node's disk, and it cannot be resized.
+
+The password was generated and sealed on the bastion, so its plain value never left it:
+
+```bash
+ssh lab-bastion 'openssl rand -base64 32 | tr -d "\n" \
+  | kubectl create secret generic processor-db --namespace platform --from-file=password=/dev/stdin --dry-run=client -o yaml \
+  | kubeseal --format yaml' > platform/processor/base/processor-db.sealedsecret.yaml
+```
+
+To read it, from the bastion (it prints the password: do it only when needed, and never paste it anywhere):
+
+```bash
+ssh lab-bastion "kubectl -n platform get secret processor-db -o jsonpath='{.data.password}' | base64 -d; echo"
+```
+
+PostgreSQL reads `POSTGRES_PASSWORD` only when it initializes an empty volume: changing the Secret afterwards does not change the database password. Rotating it needs its own procedure (`ALTER ROLE`, then a new SealedSecret), not written yet.
 
 ### Sealed Secrets
 

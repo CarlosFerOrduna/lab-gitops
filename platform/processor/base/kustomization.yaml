@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# The namespace itself is declared in namespaces/platform/ and applied first.
+namespace: platform
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: processor
+
+resources:
+  - processor-config.configmap.yaml
+  - processor-db.sealedsecret.yaml
+  - processor-postgres.service.yaml
+  - processor-postgres.statefulset.yaml
