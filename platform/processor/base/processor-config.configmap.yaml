@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: processor-config
+data:
+  NODE_ENV: production
+  PORT: "3000"
+  DATABASE_HOST: processor-postgres
+  DATABASE_PORT: "5432"
+  DATABASE_NAME: processor
+  DATABASE_USER: processor
