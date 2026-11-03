@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# controller.yaml is the upstream manifest of Sealed Secrets v0.41.2, unchanged.
+# sha256 5973b18ef77ae91e464bac62542a12c48844a08da69d80e45a8fc7f0d67fe205,
+# as listed in sealed-secrets_0.41.2_checksums.txt of the release.
+resources:
+  - controller.yaml
+
+# Pin the controller image by digest: the tag alone could be moved.
+images:
+  - name: docker.io/bitnami/sealed-secrets-controller
+    digest: sha256:e63ec6ec2b12a471bf781081bd370a93ca7b7b3999e5b9243341379aeb801d0b
