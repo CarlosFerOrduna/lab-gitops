@@ -13,3 +13,11 @@ resources:
   - processor-db.sealedsecret.yaml
   - processor-postgres.service.yaml
   - processor-postgres.statefulset.yaml
+  - processor.deployment.yaml
+  - processor.service.yaml
+
+# The tag is the tree hash of the lab-processor commit the image was built from
+# (git rev-parse HEAD^{tree}). CI updates it here in the CI stage.
+images:
+  - name: ghcr.io/carlosferorduna/lab-processor
+    newTag: 1bfaf2b6a1c6988d0c1e3b0e6c8b8cb306e9a954
