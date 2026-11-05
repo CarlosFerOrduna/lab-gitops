@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: producer-b
+  labels:
+    app.kubernetes.io/name: producer-b
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: producer-b
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: producer-b
+    spec:
+      # The image runs as the node user (1000); it is declared by name, so the UID is set
+      # here for runAsNonRoot to be verifiable.
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+      # Each replica applies the pending migrations before the API starts. The runner
+      # holds a PostgreSQL advisory lock, so only one of them changes the schema at a time.
+      initContainers:
+        - name: migrate
+          image: ghcr.io/carlosferorduna/lab-producer-b
+          command: ["node", "dist/migrate.js"]
+          envFrom:
+            - configMapRef:
+                name: producer-b-config
+          env:
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: producer-b-db
+                  key: password
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+      containers:
+        - name: producer-b
+          image: ghcr.io/carlosferorduna/lab-producer-b
+          ports:
+            - name: http
+              containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: producer-b-config
+          env:
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: producer-b-db
+                  key: password
+            - name: QUEUE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: valkey-queue-auth
+                  key: password
+            - name: CACHE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: valkey-cache-auth
+                  key: password
+          # Liveness never checks a dependency: restarting the API would not fix one.
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          # Readiness checks the database and the queue (1 s timeout each in the app), never the
+          # cache. With the queue down both replicas leave the Service, GETs included: accepted.
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 2
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi

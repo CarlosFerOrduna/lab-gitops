@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: producer-b
+  labels:
+    app.kubernetes.io/name: producer-b
+spec:
+  selector:
+    app.kubernetes.io/name: producer-b
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
