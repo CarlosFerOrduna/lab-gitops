@@ -9,6 +9,7 @@ Today:
 - `system/sealed-secrets/base/`: the Sealed Secrets controller v0.41.2, in `kube-system`.
 - `namespaces/platform/`: the `platform` namespace, apart from the apps in it, so deleting or pruning an app never deletes the namespace and the volumes of its databases.
 - `platform/processor/base/`: the processor (Deployment with 2 replicas and Service `processor`, port 80), its PostgreSQL (StatefulSet with a 1 Gi volume, headless Service), its configuration (ConfigMap) and its password (SealedSecret). The image tag in `kustomization.yaml` is the tree hash of the lab-processor commit it was built from. Each replica runs the migrations in an init container, under a PostgreSQL advisory lock.
+- `namespaces/producer-a/` and `producer-a/base/`: producer-a's API (Deployment with 2 replicas, Service `producer-a`), its worker (Deployment), and its queue: Valkey in a StatefulSet with a 1 Gi volume (AOF, `noeviction`), its configuration (ConfigMap) and its password (SealedSecret). The worker publishes to `http://processor.platform`.
 
 Until ArgoCD arrives, changes are applied by hand from the bastion, always from a commit of this repository on GitHub, never from a local copy:
 
@@ -21,6 +22,8 @@ Apply a namespace before the apps in it:
 ```bash
 ssh lab-bastion kubectl apply -k 'https://github.com/CarlosFerOrduna/lab-gitops//namespaces/platform?ref=main'
 ssh lab-bastion kubectl apply -k 'https://github.com/CarlosFerOrduna/lab-gitops//platform/processor/base?ref=main'
+ssh lab-bastion kubectl apply -k 'https://github.com/CarlosFerOrduna/lab-gitops//namespaces/producer-a?ref=main'
+ssh lab-bastion kubectl apply -k 'https://github.com/CarlosFerOrduna/lab-gitops//producer-a/base?ref=main'
 ```
 
 ### The processor's database
@@ -44,6 +47,18 @@ ssh lab-bastion "kubectl -n platform get secret processor-db -o jsonpath='{.data
 ```
 
 PostgreSQL reads `POSTGRES_PASSWORD` only when it initializes an empty volume: changing the Secret afterwards does not change the database password. Rotating it needs its own procedure (`ALTER ROLE`, then a new SealedSecret), not written yet.
+
+### The producers' queues
+
+Each producer has its own Valkey for BullMQ: a StatefulSet with AOF (`appendfsync everysec`) and `noeviction`, `maxmemory 128mb`, and a memory limit of 256 Mi, about twice `maxmemory`, because rewriting the AOF forks the process. It runs as its own user (999) from the start.
+
+The password is one SealedSecret with two keys made from the same random value on the bastion: `auth.conf` (`requirepass …`), mounted as a file and loaded with `include`, and `password`, for the apps (`QUEUE_PASSWORD`) and for the probes (`REDISCLI_AUTH`). It never appears in a command line.
+
+```bash
+ssh lab-bastion 'pw=$(openssl rand -hex 24); kubectl create secret generic valkey-queue-auth --namespace producer-a \
+  --from-literal=password="$pw" --from-literal=auth.conf="requirepass $pw" --dry-run=client -o yaml \
+  | kubeseal --format yaml' > producer-a/base/valkey-queue-auth.sealedsecret.yaml
+```
 
 ### Sealed Secrets
 

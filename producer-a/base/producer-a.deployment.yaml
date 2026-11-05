@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: producer-a
+  labels:
+    app.kubernetes.io/name: producer-a
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: producer-a
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: producer-a
+    spec:
+      # The image runs as the node user (1000); it is declared by name, so the UID is set
+      # here for runAsNonRoot to be verifiable.
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+      containers:
+        - name: producer-a
+          image: ghcr.io/carlosferorduna/lab-producer-a
+          ports:
+            - name: http
+              containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: producer-a-config
+          env:
+            - name: QUEUE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: valkey-queue-auth
+                  key: password
+          # Liveness never checks the queue: restarting the API would not fix it.
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          # Readiness writes to the queue (1 s timeout in the app): an API that cannot queue
+          # events gets no traffic, but it is not restarted.
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 2
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: producer-a-config
+data:
+  NODE_ENV: production
+  PORT: "3000"
+  QUEUE_HOST: valkey-queue
+  QUEUE_PORT: "6379"
+  # Used only by the worker. The processor lives in another namespace.
+  PROCESSOR_URL: http://processor.platform
