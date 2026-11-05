@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: processor
+  labels:
+    app.kubernetes.io/name: processor
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: processor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: processor
+    spec:
+      # The image runs as the node user (1000); it is declared by name, so the UID is set
+      # here for runAsNonRoot to be verifiable.
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+      # Each replica applies the pending migrations before the service starts. The runner
+      # holds a PostgreSQL advisory lock, so only one of them changes the schema at a time.
+      initContainers:
+        - name: migrate
+          image: ghcr.io/carlosferorduna/lab-processor
+          command: ["node", "dist/migrate.js"]
+          envFrom:
+            - configMapRef:
+                name: processor-config
+          env:
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: processor-db
+                  key: password
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+      containers:
+        - name: processor
+          image: ghcr.io/carlosferorduna/lab-processor
+          ports:
+            - name: http
+              containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: processor-config
+          env:
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: processor-db
+                  key: password
+          # Liveness never checks the database: restarting the service would not fix it.
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          # Readiness pings the database (1 s timeout in the app): a pod that cannot reach it
+          # gets no traffic, but it is not restarted.
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 2
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
