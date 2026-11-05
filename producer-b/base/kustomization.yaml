@@ -13,3 +13,7 @@ resources:
   - producer-b-db.sealedsecret.yaml
   - producer-b-postgres.service.yaml
   - producer-b-postgres.statefulset.yaml
+  - valkey-queue-auth.sealedsecret.yaml
+  - valkey-queue.configmap.yaml
+  - valkey-queue.service.yaml
+  - valkey-queue.statefulset.yaml

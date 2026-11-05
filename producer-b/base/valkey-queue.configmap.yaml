@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: valkey-queue-config
+data:
+  valkey.conf: |
+    # The queue's Valkey for BullMQ.
+    dir /data
+    # AOF: at most the last second of writes is lost if the node stops abruptly.
+    appendonly yes
+    appendfsync everysec
+    # noeviction: when full, Valkey rejects writes instead of deleting queued jobs.
+    maxmemory 128mb
+    maxmemory-policy noeviction
+    # The password lives in its own file, mounted from a Secret, never on the command line.
+    include /etc/valkey/auth/auth.conf
