@@ -1,0 +1,15 @@
+# Headless: the DNS name resolves straight to the pod of the StatefulSet.
+apiVersion: v1
+kind: Service
+metadata:
+  name: valkey-queue
+  labels:
+    app.kubernetes.io/name: valkey-queue
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: valkey-queue
+  ports:
+    - name: valkey
+      port: 6379
+      targetPort: valkey

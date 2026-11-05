@@ -9,3 +9,5 @@ data:
   DATABASE_PORT: "5432"
   DATABASE_NAME: producer_b
   DATABASE_USER: producer_b
+  QUEUE_HOST: valkey-queue
+  QUEUE_PORT: "6379"

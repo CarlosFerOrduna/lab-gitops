@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: valkey-queue
+  labels:
+    app.kubernetes.io/name: valkey-queue
+spec:
+  serviceName: valkey-queue
+  replicas: 1
+  # Deleting or scaling down the StatefulSet keeps the queue's volume.
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: valkey-queue
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: valkey-queue
+    spec:
+      # The image's valkey user (999:1000) from the start: no root and no user switch at startup.
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 1000
+        fsGroup: 1000
+        runAsNonRoot: true
+      containers:
+        - name: valkey
+          image: valkey/valkey:9.1.3-alpine@sha256:bf09d58e96d6b4524a15396b65b242bbe18beebbcc15a04d8ee75ddac62fae0b
+          command: ["valkey-server", "/etc/valkey/config/valkey.conf"]
+          ports:
+            - name: valkey
+              containerPort: 6379
+          # valkey-cli reads the password from REDISCLI_AUTH, so the probes never pass it as an argument.
+          env:
+            - name: REDISCLI_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: valkey-queue-auth
+                  key: password
+          volumeMounts:
+            - name: config
+              mountPath: /etc/valkey/config
+              readOnly: true
+            - name: auth
+              mountPath: /etc/valkey/auth
+              readOnly: true
+            - name: data
+              mountPath: /data
+          # Loading a large AOF can take a while: liveness waits until Valkey answers once.
+          startupProbe:
+            exec:
+              command: ["sh", "-c", "valkey-cli ping | grep -q PONG"]
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "valkey-cli ping | grep -q PONG"]
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "valkey-cli ping | grep -q PONG"]
+            periodSeconds: 10
+            failureThreshold: 6
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          # About twice maxmemory (128 MB): rewriting the AOF forks the process.
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+      volumes:
+        - name: config
+          configMap:
+            name: valkey-queue-config
+        - name: auth
+          secret:
+            secretName: valkey-queue-auth
+            items:
+              - key: auth.conf
+                path: auth.conf
+            defaultMode: 0440
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        # local-path does not enforce this size: the volume is a directory on the node's disk.
+        resources:
+          requests:
+            storage: 1Gi
