@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# The namespace itself is declared in namespaces/producer-a/ and applied first.
+namespace: producer-a
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: producer-a
+
+resources:
+  - producer-a-config.configmap.yaml
+  - valkey-queue-auth.sealedsecret.yaml
+  - valkey-queue.configmap.yaml
+  - valkey-queue.service.yaml
+  - valkey-queue.statefulset.yaml
+  - producer-a.deployment.yaml
+  - producer-a.service.yaml
+  - producer-a-worker.deployment.yaml
+
+# The tag is the tree hash of the lab-producer-a commit the image was built from
+# (git rev-parse HEAD^{tree}). CI updates it here in the CI stage.
+images:
+  - name: ghcr.io/carlosferorduna/lab-producer-a
+    newTag: af1896f195947412f854aafc245e4cd8cbaa5135
