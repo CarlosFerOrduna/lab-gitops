@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: producer-b-postgres
+  labels:
+    app.kubernetes.io/name: producer-b-postgres
+spec:
+  serviceName: producer-b-postgres
+  replicas: 1
+  # Deleting or scaling down the StatefulSet keeps the data volume.
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: producer-b-postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: producer-b-postgres
+    spec:
+      # Run as the image's postgres user (70) from the start: no root in the container, and the
+      # entrypoint skips switching users with gosu.
+      securityContext:
+        runAsUser: 70
+        runAsGroup: 70
+        runAsNonRoot: true
+      containers:
+        - name: postgres
+          image: postgres:18.6-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: producer-b-config
+                  key: DATABASE_NAME
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: producer-b-config
+                  key: DATABASE_USER
+            # Read only when the volume is initialized: changing the Secret later does not change it.
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: producer-b-db
+                  key: password
+          # Since PostgreSQL 18 the image's volume is /var/lib/postgresql and PGDATA is /var/lib/postgresql/18/docker.
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql
+          # Until it succeeds once, liveness and readiness do not run: initdb or a crash recovery
+          # can take a while, and a liveness restart in the middle leaves the volume half done.
+          startupProbe:
+            exec:
+              command:
+                ["sh", "-c", 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command:
+                ["sh", "-c", 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command:
+                ["sh", "-c", 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
+            periodSeconds: 10
+            failureThreshold: 6
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        # local-path does not enforce this size: the volume is a directory on the node's disk.
+        resources:
+          requests:
+            storage: 1Gi

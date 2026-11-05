@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# The namespace itself is declared in namespaces/producer-b/ and applied first.
+namespace: producer-b
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: producer-b
+
+resources:
+  - producer-b-config.configmap.yaml
+  - producer-b-db.sealedsecret.yaml
+  - producer-b-postgres.service.yaml
+  - producer-b-postgres.statefulset.yaml

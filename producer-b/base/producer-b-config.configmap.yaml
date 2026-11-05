@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: producer-b-config
+data:
+  NODE_ENV: production
+  PORT: "3000"
+  DATABASE_HOST: producer-b-postgres
+  DATABASE_PORT: "5432"
+  DATABASE_NAME: producer_b
+  DATABASE_USER: producer_b
