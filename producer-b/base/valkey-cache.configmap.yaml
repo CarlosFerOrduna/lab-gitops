@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: valkey-cache-config
+data:
+  valkey.conf: |
+    # producer-b's cache. No persistence: a restart starts empty, and the service reads from the database.
+    appendonly no
+    save ""
+    # allkeys-lru: when full, Valkey evicts the least recently used keys.
+    maxmemory 64mb
+    maxmemory-policy allkeys-lru
+    # The password lives in its own file, mounted from a Secret, never on the command line.
+    include /etc/valkey/auth/auth.conf

@@ -17,3 +17,7 @@ resources:
   - valkey-queue.configmap.yaml
   - valkey-queue.service.yaml
   - valkey-queue.statefulset.yaml
+  - valkey-cache-auth.sealedsecret.yaml
+  - valkey-cache.configmap.yaml
+  - valkey-cache.service.yaml
+  - valkey-cache.deployment.yaml
