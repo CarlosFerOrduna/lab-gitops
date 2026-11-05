@@ -21,3 +21,12 @@ resources:
   - valkey-cache.configmap.yaml
   - valkey-cache.service.yaml
   - valkey-cache.deployment.yaml
+  - producer-b.deployment.yaml
+  - producer-b.service.yaml
+  - producer-b-worker.deployment.yaml
+
+# The tag is the tree hash of the lab-producer-b commit the image was built from
+# (git rev-parse HEAD^{tree}). CI updates it here in the CI stage.
+images:
+  - name: ghcr.io/carlosferorduna/lab-producer-b
+    newTag: e8a5f866d100186fbdd1089786ef7999fdb82e98

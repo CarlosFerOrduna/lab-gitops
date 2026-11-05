@@ -10,6 +10,7 @@ Today:
 - `namespaces/platform/`: the `platform` namespace, apart from the apps in it, so deleting or pruning an app never deletes the namespace and the volumes of its databases.
 - `platform/processor/base/`: the processor (Deployment with 2 replicas and Service `processor`, port 80), its PostgreSQL (StatefulSet with a 1 Gi volume, headless Service), its configuration (ConfigMap) and its password (SealedSecret). The image tag in `kustomization.yaml` is the tree hash of the lab-processor commit it was built from. Each replica runs the migrations in an init container, under a PostgreSQL advisory lock.
 - `namespaces/producer-a/` and `producer-a/base/`: producer-a's API (Deployment with 2 replicas, Service `producer-a`), its worker (Deployment), and its queue: Valkey in a StatefulSet with a 1 Gi volume (AOF, `noeviction`), its configuration (ConfigMap) and its password (SealedSecret). The worker publishes to `http://processor.platform`.
+- `namespaces/producer-b/` and `producer-b/base/`: producer-b's API (Deployment with 2 replicas and an init container for the migrations, Service `producer-b`), its worker, its PostgreSQL (StatefulSet), its queue (Valkey StatefulSet, as producer-a's) and its cache (Valkey Deployment without a volume), each with its own SealedSecret.
 
 Until ArgoCD arrives, changes are applied by hand from the bastion, always from a commit of this repository on GitHub, never from a local copy:
 
@@ -24,6 +25,8 @@ ssh lab-bastion kubectl apply -k 'https://github.com/CarlosFerOrduna/lab-gitops/
 ssh lab-bastion kubectl apply -k 'https://github.com/CarlosFerOrduna/lab-gitops//platform/processor/base?ref=main'
 ssh lab-bastion kubectl apply -k 'https://github.com/CarlosFerOrduna/lab-gitops//namespaces/producer-a?ref=main'
 ssh lab-bastion kubectl apply -k 'https://github.com/CarlosFerOrduna/lab-gitops//producer-a/base?ref=main'
+ssh lab-bastion kubectl apply -k 'https://github.com/CarlosFerOrduna/lab-gitops//namespaces/producer-b?ref=main'
+ssh lab-bastion kubectl apply -k 'https://github.com/CarlosFerOrduna/lab-gitops//producer-b/base?ref=main'
 ```
 
 ### The processor's database
@@ -59,6 +62,24 @@ ssh lab-bastion 'pw=$(openssl rand -hex 24); kubectl create secret generic valke
   --from-literal=password="$pw" --from-literal=auth.conf="requirepass $pw" --dry-run=client -o yaml \
   | kubeseal --format yaml' > producer-a/base/valkey-queue-auth.sealedsecret.yaml
 ```
+
+### producer-b's database and cache
+
+producer-b's PostgreSQL follows the processor's: its own StatefulSet, volume and SealedSecret (`producer-b-db`), and the migrations in an init container of the API.
+
+Its data came from the PostgreSQL in producer-b's compose, once: the cluster is now the source of truth, and the compose keeps its PostgreSQL only for local development, with data that is no longer kept in sync. The copy ran with producer-b and its worker stopped in the compose, so nothing wrote during it. Only the rows of `item`: the schema is created by the migrations, and `--on-conflict-do-nothing` makes a second run insert nothing.
+
+```bash
+docker compose stop producer-b producer-b-worker   # in lab-producer-b; only postgres keeps running
+docker compose exec -T postgres pg_dump -U producer_b -d producer_b --data-only --table=item --inserts --on-conflict-do-nothing \
+  | ssh lab-bastion kubectl -n producer-b exec -i producer-b-postgres-0 -- psql -U producer_b -d producer_b -v ON_ERROR_STOP=1
+```
+
+Both sides are compared with a count and an md5 over `id`, `name`, `quantity` and `extract(epoch from created_at)`: a `timestamptz` printed as text depends on the session's time zone, its epoch does not.
+
+The cache is a Valkey Deployment without a volume: no persistence, `allkeys-lru`, `maxmemory 64mb`, a memory limit of 128 Mi, and its own password (`valkey-cache-auth`). The API never depends on it: any cache error is a miss, and readiness does not check it.
+
+Readiness checks the database and the queue. With the queue down, both replicas leave the Service and reads (`GET /items`) fail too, although they would not need the queue. This is an accepted decision: an API that cannot queue the events of new items is not ready, and splitting reads and writes into separate Services is not worth it here.
 
 ### Sealed Secrets
 
