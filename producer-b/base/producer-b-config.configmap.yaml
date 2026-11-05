@@ -11,3 +11,5 @@ data:
   DATABASE_USER: producer_b
   QUEUE_HOST: valkey-queue
   QUEUE_PORT: "6379"
+  CACHE_HOST: valkey-cache
+  CACHE_PORT: "6379"

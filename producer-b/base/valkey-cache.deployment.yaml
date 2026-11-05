@@ -1,0 +1,75 @@
+# A Deployment and not a StatefulSet: the cache keeps nothing worth a stable identity or a volume.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: valkey-cache
+  labels:
+    app.kubernetes.io/name: valkey-cache
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: valkey-cache
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: valkey-cache
+    spec:
+      # The image's valkey user (999:1000) from the start: no root and no user switch at startup.
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 1000
+        fsGroup: 1000
+        runAsNonRoot: true
+      containers:
+        - name: valkey
+          image: valkey/valkey:9.1.3-alpine@sha256:bf09d58e96d6b4524a15396b65b242bbe18beebbcc15a04d8ee75ddac62fae0b
+          command: ["valkey-server", "/etc/valkey/config/valkey.conf"]
+          ports:
+            - name: valkey
+              containerPort: 6379
+          # valkey-cli reads the password from REDISCLI_AUTH, so the probes never pass it as an argument.
+          env:
+            - name: REDISCLI_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: valkey-cache-auth
+                  key: password
+          volumeMounts:
+            - name: config
+              mountPath: /etc/valkey/config
+              readOnly: true
+            - name: auth
+              mountPath: /etc/valkey/auth
+              readOnly: true
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "valkey-cli ping | grep -q PONG"]
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "valkey-cli ping | grep -q PONG"]
+            periodSeconds: 10
+            failureThreshold: 6
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          # About twice maxmemory (64 MB), the same margin as the queue's Valkey.
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+      volumes:
+        - name: config
+          configMap:
+            name: valkey-cache-config
+        - name: auth
+          secret:
+            secretName: valkey-cache-auth
+            items:
+              - key: auth.conf
+                path: auth.conf
+            defaultMode: 0440
