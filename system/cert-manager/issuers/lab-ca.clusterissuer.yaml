@@ -1,0 +1,9 @@
+# Issues the lab's certificates (Kafka listener, Kafka clients, ingress),
+# signed by lab-root-ca. Every certificate it issues carries the root as ca.crt.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: lab-ca
+spec:
+  ca:
+    secretName: lab-root-ca

@@ -1,0 +1,23 @@
+# The lab's root CA. A ClusterIssuer reads its Secret from cert-manager's
+# cluster resource namespace, which is cert-manager by default.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: lab-root-ca
+  namespace: cert-manager
+spec:
+  isCA: true
+  commonName: lab-root-ca
+  secretName: lab-root-ca
+  duration: 87600h # 10 years
+  renewBefore: 8760h # 1 year
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    # Renewing keeps the key, so certificates issued before keep validating
+    # against the renewed root. Replacing the key is a rotation (stage 11).
+    rotationPolicy: Never
+  issuerRef:
+    kind: ClusterIssuer
+    name: lab-selfsigned
+    group: cert-manager.io

@@ -1,0 +1,8 @@
+# Signs only the lab's root certificate (lab-root-ca), with its own key.
+# Nothing else should use it: apps get their certificates from lab-ca.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: lab-selfsigned
+spec:
+  selfSigned: {}
