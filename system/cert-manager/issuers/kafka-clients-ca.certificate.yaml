@@ -1,0 +1,29 @@
+# A root CA of its own, only for Kafka's client certificates. The brokers
+# trust this root alone, so no other certificate of the lab (the ingress's,
+# for one) is a valid Kafka client. It is a root, not an intermediate of
+# lab-root-ca: the ca.crt of every certificate it issues is then this root
+# alone, which is what the brokers' truststore must hold (Java takes every
+# certificate in a truststore as a trust anchor).
+# It lives in cert-manager's cluster resource namespace so a ClusterIssuer can
+# sign with it.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: kafka-clients-ca
+  namespace: cert-manager
+spec:
+  isCA: true
+  commonName: kafka-clients-ca
+  secretName: kafka-clients-ca
+  duration: 87600h # 10 years
+  renewBefore: 8760h # 1 year
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    # As lab-root-ca: renewing keeps the key, so client certificates issued
+    # before keep validating. Replacing the key is a rotation (stage 11).
+    rotationPolicy: Never
+  issuerRef:
+    kind: ClusterIssuer
+    name: lab-selfsigned
+    group: cert-manager.io
