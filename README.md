@@ -8,8 +8,9 @@ Today:
 
 - `system/sealed-secrets/base/`: the Sealed Secrets controller v0.41.2, in `kube-system`.
 - `system/cert-manager/base/`: cert-manager v1.21.3, in `cert-manager`.
-- `system/cert-manager/issuers/`: the lab's own certificate authority: a root CA (`lab-root-ca`) and the `lab-ca` ClusterIssuer, which signs with it.
+- `system/cert-manager/issuers/`: the lab's own certificate authority: a root CA (`lab-root-ca`), the `lab-ca` ClusterIssuer, which signs with it, and a second root, `kafka-clients-ca`, with its ClusterIssuer, only for Kafka's clients.
 - `system/strimzi/base/`: the Strimzi 1.3.1 cluster operator, in `strimzi`, watching only `platform`.
+- `platform/kafka/base/`: the Kafka cluster `events` (KRaft, one node), its TLS listener certificate, the producers' topics, and one `KafkaUser` per app with its ACLs. Each app requests its client certificate in its own namespace (`kafka-client.certificate.yaml` in its base).
 - `namespaces/platform/`: the `platform` namespace, apart from the apps in it, so deleting or pruning an app never deletes the namespace and the volumes of its databases.
 - `platform/processor/base/`: the processor (Deployment with 2 replicas and Service `processor`, port 80), its PostgreSQL (StatefulSet with a 1 Gi volume, headless Service), its configuration (ConfigMap) and its password (SealedSecret). The image tag in `kustomization.yaml` is the tree hash of the lab-processor commit it was built from. Each replica runs the migrations in an init container, under a PostgreSQL advisory lock.
 - `namespaces/producer-a/` and `producer-a/base/`: producer-a's API (Deployment with 2 replicas, Service `producer-a`), its worker (Deployment), and its queue: Valkey in a StatefulSet with a 1 Gi volume (AOF, `noeviction`), its configuration (ConfigMap) and its password (SealedSecret). The worker publishes to `http://processor.platform`.
@@ -41,6 +42,7 @@ Apply a namespace before the apps in it:
 ```bash
 ssh lab-bastion kubectl apply -k 'https://github.com/CarlosFerOrduna/lab-gitops//namespaces/platform?ref=main'
 ssh lab-bastion kubectl apply -k 'https://github.com/CarlosFerOrduna/lab-gitops//platform/processor/base?ref=main'
+ssh lab-bastion kubectl apply -k 'https://github.com/CarlosFerOrduna/lab-gitops//platform/kafka/base?ref=main'
 ssh lab-bastion kubectl apply -k 'https://github.com/CarlosFerOrduna/lab-gitops//namespaces/producer-a?ref=main'
 ssh lab-bastion kubectl apply -k 'https://github.com/CarlosFerOrduna/lab-gitops//producer-a/base?ref=main'
 ssh lab-bastion kubectl apply -k 'https://github.com/CarlosFerOrduna/lab-gitops//namespaces/producer-b?ref=main'
@@ -140,11 +142,12 @@ Each component has a Kustomize `base/` and one overlay per environment:
 
 cert-manager issues every certificate of the lab from its own root, without anything copied by hand:
 
-- `lab-selfsigned` (ClusterIssuer) signs only the root, with the root's own key.
+- `lab-selfsigned` (ClusterIssuer) signs only the lab's two roots, each with its own key.
 - `lab-root-ca` (Certificate in `cert-manager`, `isCA`) is the root: ECDSA P-256, 10 years, renewed one year before it expires. Its key is never rotated on renewal (`rotationPolicy: Never`), so the certificates issued before still validate against the renewed root. Replacing the key is a rotation, with its own procedure (stage 11).
 - `lab-ca` (ClusterIssuer) signs the lab's certificates with the root. Each certificate it issues carries the root as `ca.crt`, so whoever holds one can verify the others.
+- `kafka-clients-ca` (Certificate in `cert-manager`, `isCA`, self-signed; 10 years, `rotationPolicy: Never`) is a second root, and its ClusterIssuer signs only Kafka's client certificates. It is a root and not an intermediate of `lab-root-ca` because the brokers' truststore must hold it alone (see Kafka below), and the `ca.crt` that cert-manager writes is always the root of the chain. The brokers trust only this root, so no other certificate of the lab (the ingress's, for one) is a valid Kafka client.
 
-The root's key lives only in the `lab-root-ca` Secret of the `cert-manager` namespace. Each certificate is requested by a `Certificate` in the namespace that uses it, and its key is created there and never leaves it.
+The roots' keys live only in their Secrets, in the `cert-manager` namespace. Each certificate is requested by a `Certificate` in the namespace that uses it, and its key is created there and never leaves it.
 
 ### The Strimzi operator
 
@@ -155,6 +158,20 @@ The root's key lives only in the `lab-root-ca` Secret of the `cert-manager` name
 - The operator image, and the images it starts (Kafka 4.3.2, topic and user operators, init), are pinned by digest. `STRIMZI_KAFKA_IMAGES` keeps the whole upstream list, because the operator refuses to start unless every supported Kafka version has an image; only 4.3.2, the version the lab runs, is pinned by digest. Moving to another version means pinning its image there first.
 
 Watching a new namespace means adding it to `STRIMZI_NAMESPACE` (comma-separated) and the three RoleBindings in it.
+
+### Kafka
+
+`events` runs in `platform`, managed by the Strimzi operator: one KRaft node that is both controller and broker (`KafkaNodePool` `dual-role`), with a 512 MB heap, 1 Gi of memory (request = limit) and its log on a `local-path` volume kept when the cluster is deleted (`deleteClaim: false`). With one broker every replication factor is 1, and `acks=all` is the same as `acks=1`. Topics are created only from `KafkaTopic` resources (`auto.create.topics.enable: false`).
+
+The apps reach it at `events-kafka-bootstrap.platform.svc:9093`, its only listener: TLS, with mutual authentication.
+
+- The brokers present `events-kafka-listener-tls`, issued by `lab-ca` for the bootstrap service and every broker. Kafka loads its key as a PEM keystore, so it is PKCS#8. When cert-manager renews it, Strimzi rolls the broker: with one node, that is a short outage.
+- Each app requests, in its own namespace, `kafka-client` (Secret `kafka-client-tls`) from `kafka-clients-ca`, with exactly `CN=<app>` as subject; the key is created there and never leaves it. It verifies the brokers with the `ca.crt` of `lab-root-ca-ref`, a certificate from `lab-ca` whose only use is to carry the lab's root into the namespace. Strimzi's internal cluster CA stays in `platform`.
+- The brokers trust only certificates issued by `kafka-clients-ca` (`clientsCa.type: cert-manager`, Early Access in Strimzi 1.3), read from the `ca.crt` of `kafka-clients-ca-ref`, a certificate in `platform` whose only use is to carry that root. Strimzi never holds the key of either root. That `ca.crt` must hold the client root alone: Java takes every certificate in a truststore as a trust anchor, so with `lab-root-ca` in it any certificate of the lab would be a valid client.
+- The roots renew with `rotationPolicy: Never`: a renewed root keeps its key and subject, so the old copy in Kafka's truststore, and in each `lab-root-ca-ref`, keeps validating until it expires. What is pending is making sure the `-ref` certificates that carry a root (`kafka-clients-ca-ref` for `kafka-clients-ca`, every `lab-root-ca-ref` for `lab-root-ca`) are renewed before the old copy expires (`cmctl renew`). Replacing a root's key is a rotation, with its own procedure (stage 11).
+- The `KafkaUser` of each app (`tls-external`) holds only its ACLs, for the principal `CN=<app>`. Each producer can write only to the topics that start with its name; the processor can read both producers' topics and commit as the group `processor`.
+
+Any namespace can request a certificate from `kafka-clients-ca` with any CN: what keeps an app from claiming another app's identity is the review of this repository, not the cluster. Stage 08 enforces it with cert-manager's approver-policy, one `CertificateRequestPolicy` per namespace (in `producer-b`, only `CN=producer-b` and only from `kafka-clients-ca`). That needs cert-manager's default approver turned off (`--controllers=-certificaterequests-approver` in the `cert-manager` Deployment's args): otherwise it approves every request before the policy is evaluated.
 
 ## Rules
 
