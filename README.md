@@ -7,6 +7,8 @@ The desired state of the lab clusters. ArgoCD applies whatever is in this reposi
 Today:
 
 - `system/sealed-secrets/base/`: the Sealed Secrets controller v0.41.2, in `kube-system`.
+- `system/cert-manager/base/`: cert-manager v1.21.3, in `cert-manager`.
+- `system/cert-manager/issuers/`: the lab's own certificate authority: a root CA (`lab-root-ca`) and the `lab-ca` ClusterIssuer, which signs with it.
 - `namespaces/platform/`: the `platform` namespace, apart from the apps in it, so deleting or pruning an app never deletes the namespace and the volumes of its databases.
 - `platform/processor/base/`: the processor (Deployment with 2 replicas and Service `processor`, port 80), its PostgreSQL (StatefulSet with a 1 Gi volume, headless Service), its configuration (ConfigMap) and its password (SealedSecret). The image tag in `kustomization.yaml` is the tree hash of the lab-processor commit it was built from. Each replica runs the migrations in an init container, under a PostgreSQL advisory lock.
 - `namespaces/producer-a/` and `producer-a/base/`: producer-a's API (Deployment with 2 replicas, Service `producer-a`), its worker (Deployment), and its queue: Valkey in a StatefulSet with a 1 Gi volume (AOF, `noeviction`), its configuration (ConfigMap) and its password (SealedSecret). The worker publishes to `http://processor.platform`.
@@ -16,6 +18,14 @@ Until ArgoCD arrives, changes are applied by hand from the bastion, always from 
 
 ```bash
 ssh lab-bastion kubectl apply -k 'https://github.com/CarlosFerOrduna/lab-gitops//system/sealed-secrets/base?ref=main'
+```
+
+cert-manager goes in two steps: its issuers need its CRDs and its webhook, so they are applied once the webhook is available:
+
+```bash
+ssh lab-bastion kubectl apply -k 'https://github.com/CarlosFerOrduna/lab-gitops//system/cert-manager/base?ref=main'
+ssh lab-bastion kubectl -n cert-manager wait --for=condition=Available deployment --all --timeout=180s
+ssh lab-bastion kubectl apply -k 'https://github.com/CarlosFerOrduna/lab-gitops//system/cert-manager/issuers?ref=main'
 ```
 
 Apply a namespace before the apps in it:
@@ -117,6 +127,16 @@ Each component has a Kustomize `base/` and one overlay per environment:
     stage/
     prod/
 ```
+
+### The lab's certificate authority
+
+cert-manager issues every certificate of the lab from its own root, without anything copied by hand:
+
+- `lab-selfsigned` (ClusterIssuer) signs only the root, with the root's own key.
+- `lab-root-ca` (Certificate in `cert-manager`, `isCA`) is the root: ECDSA P-256, 10 years, renewed one year before it expires. Its key is never rotated on renewal (`rotationPolicy: Never`), so the certificates issued before still validate against the renewed root. Replacing the key is a rotation, with its own procedure (stage 11).
+- `lab-ca` (ClusterIssuer) signs the lab's certificates with the root. Each certificate it issues carries the root as `ca.crt`, so whoever holds one can verify the others.
+
+The root's key lives only in the `lab-root-ca` Secret of the `cert-manager` namespace. Each certificate is requested by a `Certificate` in the namespace that uses it, and its key is created there and never leaves it.
 
 ## Rules
 
