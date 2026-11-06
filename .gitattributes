@@ -1,1 +1,6 @@
-* text=auto eol=lf
+# Upstream manifests vendored unchanged (verified against their releases, see
+# each kustomization.yaml). Collapsed in pull request diffs: what is reviewed
+# is the kustomization and its patches.
+system/cert-manager/base/cert-manager.yaml linguist-generated=true
+system/sealed-secrets/base/controller.yaml linguist-generated=true
+system/strimzi/base/strimzi-cluster-operator-*.yaml linguist-generated=true
