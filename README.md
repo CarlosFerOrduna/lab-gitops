@@ -9,6 +9,7 @@ Today:
 - `system/sealed-secrets/base/`: the Sealed Secrets controller v0.41.2, in `kube-system`.
 - `system/cert-manager/base/`: cert-manager v1.21.3, in `cert-manager`.
 - `system/cert-manager/issuers/`: the lab's own certificate authority: a root CA (`lab-root-ca`) and the `lab-ca` ClusterIssuer, which signs with it.
+- `system/strimzi/base/`: the Strimzi 1.3.1 cluster operator, in `strimzi`, watching only `platform`.
 - `namespaces/platform/`: the `platform` namespace, apart from the apps in it, so deleting or pruning an app never deletes the namespace and the volumes of its databases.
 - `platform/processor/base/`: the processor (Deployment with 2 replicas and Service `processor`, port 80), its PostgreSQL (StatefulSet with a 1 Gi volume, headless Service), its configuration (ConfigMap) and its password (SealedSecret). The image tag in `kustomization.yaml` is the tree hash of the lab-processor commit it was built from. Each replica runs the migrations in an init container, under a PostgreSQL advisory lock.
 - `namespaces/producer-a/` and `producer-a/base/`: producer-a's API (Deployment with 2 replicas, Service `producer-a`), its worker (Deployment), and its queue: Valkey in a StatefulSet with a 1 Gi volume (AOF, `noeviction`), its configuration (ConfigMap) and its password (SealedSecret). The worker publishes to `http://processor.platform`.
@@ -26,6 +27,13 @@ cert-manager goes in two steps: its issuers need its CRDs and its webhook, so th
 ssh lab-bastion kubectl apply -k 'https://github.com/CarlosFerOrduna/lab-gitops//system/cert-manager/base?ref=main'
 ssh lab-bastion kubectl -n cert-manager wait --for=condition=Available deployment --all --timeout=180s
 ssh lab-bastion kubectl apply -k 'https://github.com/CarlosFerOrduna/lab-gitops//system/cert-manager/issuers?ref=main'
+```
+
+Strimzi's CRDs are larger than the annotation a client-side apply keeps, so Strimzi is always applied, and diffed, server-side:
+
+```bash
+ssh lab-bastion kubectl apply --server-side -k 'https://github.com/CarlosFerOrduna/lab-gitops//system/strimzi/base?ref=main'
+ssh lab-bastion kubectl diff --server-side -k 'https://github.com/CarlosFerOrduna/lab-gitops//system/strimzi/base?ref=main'
 ```
 
 Apply a namespace before the apps in it:
@@ -137,6 +145,16 @@ cert-manager issues every certificate of the lab from its own root, without anyt
 - `lab-ca` (ClusterIssuer) signs the lab's certificates with the root. Each certificate it issues carries the root as `ca.crt`, so whoever holds one can verify the others.
 
 The root's key lives only in the `lab-root-ca` Secret of the `cert-manager` namespace. Each certificate is requested by a `Certificate` in the namespace that uses it, and its key is created there and never leaves it.
+
+### The Strimzi operator
+
+`strimzi-cluster-operator-1.3.1.yaml` is the upstream manifest, unchanged; everything specific to the lab is a patch in `kustomization.yaml`:
+
+- The operator runs in `strimzi` and watches only `platform` (`STRIMZI_NAMESPACE`). Its rights over the Kafka cluster are RoleBindings in `platform`; its leader election stays in `strimzi`.
+- The upstream bindings name the placeholder namespace `myproject` in their subjects, which Kustomize's `namespace` field does not rewrite: the patches point them at `strimzi`. That field is not used at all, because it runs after the patches and would move the `platform` RoleBindings back to `strimzi`.
+- The operator image, and the images it starts (Kafka 4.3.2, topic and user operators, init), are pinned by digest. `STRIMZI_KAFKA_IMAGES` lists only Kafka 4.3.2: upgrading Kafka means adding the new version there first.
+
+Watching a new namespace means adding it to `STRIMZI_NAMESPACE` (comma-separated) and the three RoleBindings in it.
 
 ## Rules
 
