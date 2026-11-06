@@ -1,0 +1,11 @@
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: producer-b-items
+  labels:
+    strimzi.io/cluster: events
+spec:
+  # Each app's topics start with its name: its KafkaUser's ACLs are prefixes.
+  topicName: producer-b.items
+  partitions: 3
+  replicas: 1
