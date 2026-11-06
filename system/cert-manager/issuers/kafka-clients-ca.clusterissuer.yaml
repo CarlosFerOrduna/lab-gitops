@@ -1,0 +1,9 @@
+# Issues the Kafka client certificates of the apps, signed by kafka-clients-ca.
+# Each certificate it issues carries that root as ca.crt.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: kafka-clients-ca
+spec:
+  ca:
+    secretName: kafka-clients-ca

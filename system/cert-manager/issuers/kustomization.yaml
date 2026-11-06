@@ -7,3 +7,5 @@ resources:
   - lab-selfsigned.clusterissuer.yaml
   - lab-root-ca.certificate.yaml
   - lab-ca.clusterissuer.yaml
+  - kafka-clients-ca.certificate.yaml
+  - kafka-clients-ca.clusterissuer.yaml
