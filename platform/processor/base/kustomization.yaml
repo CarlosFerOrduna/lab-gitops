@@ -15,6 +15,8 @@ resources:
   - processor-postgres.statefulset.yaml
   - processor.deployment.yaml
   - processor.service.yaml
+  - processor-consumer-config.configmap.yaml
+  - processor-consumer.deployment.yaml
   - kafka-client.certificate.yaml
   - lab-root-ca-ref.certificate.yaml
 

@@ -1,0 +1,14 @@
+# Only the consumer reads these: the API does not talk to Kafka.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: processor-consumer-config
+data:
+  KAFKA_BOOTSTRAP_BROKERS: events-kafka-bootstrap.platform.svc:9093
+  KAFKA_CLIENT_ID: processor-consumer
+  # The group the processor KafkaUser may read as (platform/kafka/base).
+  KAFKA_GROUP_ID: processor
+  KAFKA_TOPICS: producer-a.messages,producer-b.items
+  KAFKA_CA_FILE: /etc/kafka/root/ca.crt
+  KAFKA_CERT_FILE: /etc/kafka/client/tls.crt
+  KAFKA_KEY_FILE: /etc/kafka/client/tls.key

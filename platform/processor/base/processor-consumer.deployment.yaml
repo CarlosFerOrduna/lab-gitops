@@ -1,0 +1,114 @@
+# The Kafka consumer: same image as the API, another command (dist/consumer.js). Apart from the
+# API, so each scales on its own and a stuck consumer never takes the API out of its Service.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: processor-consumer
+  labels:
+    app.kubernetes.io/name: processor-consumer
+spec:
+  # Up to three replicas share the work: each topic has three partitions.
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: processor-consumer
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: processor-consumer
+    spec:
+      # The image runs as the node user (1000); it is declared by name, so the UID is set
+      # here for runAsNonRoot to be verifiable. fsGroup lets that user read the mounted keys.
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        runAsNonRoot: true
+      # The same migrations as the API, under the same PostgreSQL advisory lock: in a new
+      # cluster the consumer cannot store anything until the event table exists.
+      initContainers:
+        - name: migrate
+          image: ghcr.io/carlosferorduna/lab-processor
+          command: ["node", "dist/migrate.js"]
+          envFrom:
+            - configMapRef:
+                name: processor-config
+          env:
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: processor-db
+                  key: password
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+      containers:
+        - name: consumer
+          image: ghcr.io/carlosferorduna/lab-processor
+          command: ["node", "dist/consumer.js"]
+          ports:
+            - name: http
+              containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: processor-config
+            - configMapRef:
+                name: processor-consumer-config
+          env:
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: processor-db
+                  key: password
+          # Only that the process is up. It does not see a stuck consumer: retrying a message
+          # while the database is down never fails it. The group's lag is watched in stage 14.
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          volumeMounts:
+            - name: kafka-client
+              mountPath: /etc/kafka/client
+              readOnly: true
+            - name: lab-root-ca
+              mountPath: /etc/kafka/root
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+      volumes:
+        # The processor's Kafka identity (CN=processor): its certificate and key only.
+        - name: kafka-client
+          secret:
+            secretName: kafka-client-tls
+            defaultMode: 0440
+            items:
+              - key: tls.crt
+                path: tls.crt
+              - key: tls.key
+                path: tls.key
+        # The lab's root, to verify the brokers. Only ca.crt: the key of lab-root-ca-ref is
+        # never mounted.
+        - name: lab-root-ca
+          secret:
+            secretName: lab-root-ca-ref
+            defaultMode: 0440
+            items:
+              - key: ca.crt
+                path: ca.crt
