@@ -1,0 +1,25 @@
+# Watch only platform, and pin by digest the images the operator starts.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: strimzi-cluster-operator
+spec:
+  template:
+    spec:
+      containers:
+        - name: strimzi-cluster-operator
+          env:
+            - name: STRIMZI_NAMESPACE
+              value: platform
+              valueFrom: null
+            # Only the Kafka version the lab runs, pinned by digest. Upgrading
+            # Kafka means adding the new version here first.
+            - name: STRIMZI_KAFKA_IMAGES
+              value: |
+                4.3.2=quay.io/strimzi/kafka@sha256:9cea505e434a53cea40941d2c6e9aa5896792fe9c9380feb1d7adea3867a3a0b
+            - name: STRIMZI_DEFAULT_TOPIC_OPERATOR_IMAGE
+              value: quay.io/strimzi/operator@sha256:55f43849559a0d151be473c588c89e9d72649ecadf088c8b9d92d37654a5e5eb
+            - name: STRIMZI_DEFAULT_USER_OPERATOR_IMAGE
+              value: quay.io/strimzi/operator@sha256:55f43849559a0d151be473c588c89e9d72649ecadf088c8b9d92d37654a5e5eb
+            - name: STRIMZI_DEFAULT_KAFKA_INIT_IMAGE
+              value: quay.io/strimzi/operator@sha256:55f43849559a0d151be473c588c89e9d72649ecadf088c8b9d92d37654a5e5eb

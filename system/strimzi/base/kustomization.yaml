@@ -1,0 +1,50 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# The Strimzi cluster operator runs in the strimzi namespace and watches only
+# platform, where the Kafka cluster lives. The namespaces are set by patches,
+# not by the namespace field: that field is applied after the patches and
+# would move the RoleBindings that belong in platform back to strimzi.
+
+# strimzi-cluster-operator-1.3.1.yaml is the upstream manifest of Strimzi 1.3.1,
+# unchanged. sha256 557c1452cbf58f80714858b25203cb644de5b15edb1e9adf6bf7fcf8b22a1931.
+# The release does not attest that file, but it attests strimzi-1.3.1.tar.gz
+# (strimzi-1.3.1.intoto.jsonl), whose install/cluster-operator/ holds the
+# same 27 objects.
+# Its CRDs are too large for a client-side apply: apply with --server-side.
+resources:
+  - namespace.yaml
+  - strimzi-cluster-operator-1.3.1.yaml
+
+# Pin the operator image by digest (multi-arch index): the tag could be moved.
+images:
+  - name: quay.io/strimzi/operator
+    digest: sha256:55f43849559a0d151be473c588c89e9d72649ecadf088c8b9d92d37654a5e5eb
+
+patches:
+  # The upstream objects carry no namespace: the operator's own go to strimzi.
+  - target:
+      kind: (ServiceAccount|ConfigMap|Deployment|RoleBinding)
+    patch: |-
+      - op: add
+        path: /metadata/namespace
+        value: strimzi
+  # The upstream manifest binds the operator's ServiceAccount in the
+  # placeholder namespace "myproject": point every binding at the strimzi
+  # namespace, where that ServiceAccount lives.
+  - target:
+      kind: (RoleBinding|ClusterRoleBinding)
+    patch: |-
+      - op: replace
+        path: /subjects/0/namespace
+        value: strimzi
+  # The operator's rights over the Kafka cluster are granted in the watched
+  # namespace. Leader election stays in strimzi, with the operator.
+  - target:
+      kind: RoleBinding
+      name: (strimzi-cluster-operator|strimzi-cluster-operator-watched|strimzi-cluster-operator-entity-operator-delegation)
+    patch: |-
+      - op: add
+        path: /metadata/namespace
+        value: platform
+  - path: strimzi-cluster-operator.deployment.patch.yaml
