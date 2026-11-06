@@ -1,0 +1,14 @@
+# Only the worker reads these: the API does not talk to Kafka.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: producer-a-worker-config
+data:
+  # A host name, never an IP: TLS checks the broker's certificate against it.
+  KAFKA_BOOTSTRAP_BROKERS: events-kafka-bootstrap.platform.svc:9093
+  KAFKA_CLIENT_ID: producer-a-worker
+  # The producer-a KafkaUser may write only to topics under producer-a. (platform/kafka/base).
+  KAFKA_TOPIC: producer-a.messages
+  KAFKA_CA_FILE: /etc/kafka/root/ca.crt
+  KAFKA_CERT_FILE: /etc/kafka/client/tls.crt
+  KAFKA_KEY_FILE: /etc/kafka/client/tls.key

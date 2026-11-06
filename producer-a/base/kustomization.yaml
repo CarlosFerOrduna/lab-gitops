@@ -16,6 +16,7 @@ resources:
   - valkey-queue.statefulset.yaml
   - producer-a.deployment.yaml
   - producer-a.service.yaml
+  - producer-a-worker-config.configmap.yaml
   - producer-a-worker.deployment.yaml
   - kafka-client.certificate.yaml
   - lab-root-ca-ref.certificate.yaml
@@ -24,4 +25,4 @@ resources:
 # (git rev-parse HEAD^{tree}). CI updates it here in the CI stage.
 images:
   - name: ghcr.io/carlosferorduna/lab-producer-a
-    newTag: af1896f195947412f854aafc245e4cd8cbaa5135
+    newTag: bf57e9204939b153482e9332d721f9485e170895
