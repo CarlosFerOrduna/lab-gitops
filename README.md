@@ -161,7 +161,7 @@ Watching a new namespace means adding it to `STRIMZI_NAMESPACE` (comma-separated
 
 ### Kafka
 
-`events` runs in `platform`, managed by the Strimzi operator: one KRaft node that is both controller and broker (`KafkaNodePool` `dual-role`), with a 512 MB heap, 1 Gi of memory (request = limit) and its log on a `local-path` volume kept when the cluster is deleted (`deleteClaim: false`). With one broker every replication factor is 1, and `acks=all` is the same as `acks=1`. Topics are created only from `KafkaTopic` resources (`auto.create.topics.enable: false`).
+`events` runs in `platform`, managed by the Strimzi operator: one KRaft node that is both controller and broker (`KafkaNodePool` `dual-role`), with a 512 MB heap, 1 Gi of memory (request = limit) and its log on a `local-path` volume kept when the cluster is deleted (`deleteClaim: false`). With one broker every replication factor is 1, and `acks=all` is the same as `acks=1`. Topics are created only from `KafkaTopic` resources (`auto.create.topics.enable: false`). The topic and user operators get 256 Mi each (request = limit), sized from what they use at rest; their heap is 20% of that limit.
 
 The apps reach it at `events-kafka-bootstrap.platform.svc:9093`, its only listener: TLS, with mutual authentication.
 
