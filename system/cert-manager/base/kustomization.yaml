@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# cert-manager.yaml is the upstream manifest of cert-manager v1.21.3, unchanged.
+# sha256 c04a51295adda2b1a775146751f973e787190778c7f35180861d9678876e5c74,
+# as listed by the GitHub API for that asset of the release (it publishes no
+# checksums file).
+resources:
+  - cert-manager.yaml
+
+# Pin the images by digest (multi-arch index): the tags alone could be moved.
+images:
+  - name: quay.io/jetstack/cert-manager-cainjector
+    digest: sha256:083d0e906f8eb44e255fe4ff817ae54e49f9ed82e22f1011bb4e9e4f4b8a641f
+  - name: quay.io/jetstack/cert-manager-controller
+    digest: sha256:9f4f96a33c7774cef24466fcd85031997531a03a8d117f151126baa8d1290dcc
+  - name: quay.io/jetstack/cert-manager-webhook
+    digest: sha256:055ac8e9de6a0ba6763794838fe38944acc650f68ebe1b01dd8be079e580f458
