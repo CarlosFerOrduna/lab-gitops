@@ -24,4 +24,4 @@ resources:
 # (git rev-parse HEAD^{tree}). CI updates it here in the CI stage.
 images:
   - name: ghcr.io/carlosferorduna/lab-processor
-    newTag: cba178df70f6437ea91fd6fc8c030ee228b3a515
+    newTag: 8328bfebc373214ae664f34f4259266011c0749b
