@@ -1,0 +1,27 @@
+# producer-a's identity in Kafka. The key is created here, in this namespace, and
+# never leaves it. The subject must be exactly CN=producer-a: the KafkaUser
+# "producer-a" in platform holds the ACLs of the principal User:CN=producer-a.
+# Issued by kafka-clients-ca, the only CA the brokers trust for clients. Its
+# ca.crt is that root, which does not verify the brokers: for that, the app
+# uses the ca.crt of lab-root-ca-ref.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: kafka-client
+spec:
+  secretName: kafka-client-tls
+  commonName: producer-a
+  usages:
+    - digital signature
+    - client auth
+  duration: 2160h # 90 days
+  renewBefore: 720h # 30 days
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    encoding: PKCS8
+    rotationPolicy: Always
+  issuerRef:
+    kind: ClusterIssuer
+    name: kafka-clients-ca
+    group: cert-manager.io

@@ -24,6 +24,8 @@ resources:
   - producer-b.deployment.yaml
   - producer-b.service.yaml
   - producer-b-worker.deployment.yaml
+  - kafka-client.certificate.yaml
+  - lab-root-ca-ref.certificate.yaml
 
 # The tag is the tree hash of the lab-producer-b commit the image was built from
 # (git rev-parse HEAD^{tree}). CI updates it here in the CI stage.

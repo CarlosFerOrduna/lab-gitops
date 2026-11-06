@@ -1,0 +1,26 @@
+# Only a carrier for lab-root-ca in this namespace: its ca.crt is the lab's
+# root, which verifies the Kafka brokers' listener certificate. Its own
+# certificate and key are not used, and Kafka rejects it as a client (it is not
+# from kafka-clients-ca).
+# cert-manager keeps it, and so its ca.crt, current across renewals and
+# rebuilds. If lab-root-ca is replaced with a new key, this Certificate must be
+# renewed to carry the new root (procedure pending, stage 11).
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: lab-root-ca-ref
+spec:
+  secretName: lab-root-ca-ref
+  commonName: lab-root-ca-ref
+  usages:
+    - digital signature
+  duration: 2160h # 90 days
+  renewBefore: 720h # 30 days
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  issuerRef:
+    kind: ClusterIssuer
+    name: lab-ca
+    group: cert-manager.io
