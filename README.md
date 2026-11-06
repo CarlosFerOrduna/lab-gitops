@@ -152,7 +152,7 @@ The root's key lives only in the `lab-root-ca` Secret of the `cert-manager` name
 
 - The operator runs in `strimzi` and watches only `platform` (`STRIMZI_NAMESPACE`). Its rights over the Kafka cluster are RoleBindings in `platform`; its leader election stays in `strimzi`.
 - The upstream bindings name the placeholder namespace `myproject` in their subjects, which Kustomize's `namespace` field does not rewrite: the patches point them at `strimzi`. That field is not used at all, because it runs after the patches and would move the `platform` RoleBindings back to `strimzi`.
-- The operator image, and the images it starts (Kafka 4.3.2, topic and user operators, init), are pinned by digest. `STRIMZI_KAFKA_IMAGES` lists only Kafka 4.3.2: upgrading Kafka means adding the new version there first.
+- The operator image, and the images it starts (Kafka 4.3.2, topic and user operators, init), are pinned by digest. `STRIMZI_KAFKA_IMAGES` keeps the whole upstream list, because the operator refuses to start unless every supported Kafka version has an image; only 4.3.2, the version the lab runs, is pinned by digest. Moving to another version means pinning its image there first.
 
 Watching a new namespace means adding it to `STRIMZI_NAMESPACE` (comma-separated) and the three RoleBindings in it.
 
