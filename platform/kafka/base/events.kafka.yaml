@@ -51,9 +51,9 @@ spec:
         certificate: ca.crt
   # Sized from what they used at rest (topic operator 156 Mi, user operator
   # 171 Mi, with 2 topics and 3 users). Strimzi sizes their heap as 20% of the
-  # memory limit (MaxRAMPercentage=20): about 51 MB here, for about 25 MB in
-  # use. A full heap exits the JVM (ExitOnOutOfMemoryError) and restarts the
-  # container: watch the restarts as topics and users grow.
+  # memory limit (MaxRAMPercentage=20): about 40 MiB here (measured with jcmd),
+  # for about 21 MiB in use. A full heap exits the JVM (ExitOnOutOfMemoryError)
+  # and restarts the container: watch the restarts as topics and users grow.
   entityOperator:
     topicOperator:
       resources:
