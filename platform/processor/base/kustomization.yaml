@@ -15,6 +15,8 @@ resources:
   - processor-postgres.statefulset.yaml
   - processor.deployment.yaml
   - processor.service.yaml
+  - kafka-client.certificate.yaml
+  - lab-root-ca-ref.certificate.yaml
 
 # The tag is the tree hash of the lab-processor commit the image was built from
 # (git rev-parse HEAD^{tree}). CI updates it here in the CI stage.
