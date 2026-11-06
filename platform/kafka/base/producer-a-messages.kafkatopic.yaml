@@ -1,0 +1,11 @@
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: producer-a-messages
+  labels:
+    strimzi.io/cluster: events
+spec:
+  # Each app's topics start with its name: its KafkaUser's ACLs are prefixes.
+  topicName: producer-a.messages
+  partitions: 3
+  replicas: 1

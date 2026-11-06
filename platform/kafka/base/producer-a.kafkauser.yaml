@@ -1,0 +1,22 @@
+# producer-a's identity in Kafka: the CN of the client certificate it requests in
+# its own namespace (tls-external: the User Operator only manages the ACLs).
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaUser
+metadata:
+  name: producer-a
+  labels:
+    strimzi.io/cluster: events
+spec:
+  authentication:
+    type: tls-external
+  authorization:
+    type: simple
+    acls:
+      # Writes only to its own topics.
+      - resource:
+          type: topic
+          name: producer-a.
+          patternType: prefix
+        operations:
+          - Write
+          - Describe

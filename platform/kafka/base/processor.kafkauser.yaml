@@ -1,0 +1,36 @@
+# The processor's identity in Kafka: the CN of the client certificate it
+# requests in platform (tls-external: the User Operator only manages the ACLs).
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaUser
+metadata:
+  name: processor
+  labels:
+    strimzi.io/cluster: events
+spec:
+  authentication:
+    type: tls-external
+  authorization:
+    type: simple
+    acls:
+      # Reads the producers' topics, and nothing else.
+      - resource:
+          type: topic
+          name: producer-a.
+          patternType: prefix
+        operations:
+          - Read
+          - Describe
+      - resource:
+          type: topic
+          name: producer-b.
+          patternType: prefix
+        operations:
+          - Read
+          - Describe
+      # Commits its offsets as the consumer group "processor".
+      - resource:
+          type: group
+          name: processor
+          patternType: literal
+        operations:
+          - Read

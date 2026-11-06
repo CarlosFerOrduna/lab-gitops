@@ -15,3 +15,8 @@ resources:
   - kafka-clients-ca-ref.certificate.yaml
   - events.kafka.yaml
   - dual-role.kafkanodepool.yaml
+  - producer-a-messages.kafkatopic.yaml
+  - producer-b-items.kafkatopic.yaml
+  - producer-a.kafkauser.yaml
+  - producer-b.kafkauser.yaml
+  - processor.kafkauser.yaml
