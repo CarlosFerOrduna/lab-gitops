@@ -1,0 +1,68 @@
+# The lab's Kafka cluster: KRaft, one node (see dual-role.kafkanodepool.yaml).
+apiVersion: kafka.strimzi.io/v1
+kind: Kafka
+metadata:
+  name: events
+spec:
+  kafka:
+    version: 4.3.2
+    listeners:
+      # The only listener for the apps: TLS, and each app authenticates with
+      # its own certificate (mTLS). There is no plain listener.
+      - name: tls
+        port: 9093
+        type: internal
+        tls: true
+        authentication:
+          type: tls
+        configuration:
+          brokerCertChainAndKey:
+            secretName: events-kafka-listener-tls
+            certificate: tls.crt
+            key: tls.key
+    # Each KafkaUser gets only the ACLs it declares. Strimzi's own operators
+    # are super users through their internal certificates.
+    authorization:
+      type: simple
+    config:
+      # A single broker: every replication factor and ISR is 1.
+      default.replication.factor: 1
+      min.insync.replicas: 1
+      offsets.topic.replication.factor: 1
+      transaction.state.log.replication.factor: 1
+      transaction.state.log.min.isr: 1
+      # Topics exist only as KafkaTopic resources.
+      auto.create.topics.enable: false
+  # The brokers trust only client certificates issued by kafka-clients-ca, a
+  # root of its own, without its key (Early Access in Strimzi 1.3). The apps
+  # request their certificates themselves, in their own namespaces; issuerRef
+  # is required by the schema but not used for clients.
+  clientsCa:
+    generateCertificateAuthority: false
+    type: cert-manager
+    certManager:
+      issuerRef:
+        kind: ClusterIssuer
+        name: kafka-clients-ca
+        group: cert-manager.io
+      # That root alone, as ca.crt of a certificate it issued in platform.
+      caCertRef:
+        secretName: kafka-clients-ca-ref
+        certificate: ca.crt
+  entityOperator:
+    topicOperator:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 512Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+    userOperator:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 512Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi

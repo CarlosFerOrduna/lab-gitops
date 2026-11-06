@@ -1,0 +1,37 @@
+# The certificate the brokers present on the tls listener, issued by the lab's
+# CA: every app verifies it with lab-root-ca (the ca.crt of lab-root-ca-ref in
+# its own namespace), so Strimzi's internal cluster CA never leaves platform.
+# Kafka loads the key as a PEM keystore, which needs PKCS#8. On renewal,
+# Strimzi rolls the broker to load the new certificate.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: events-kafka-listener
+spec:
+  secretName: events-kafka-listener-tls
+  commonName: events-kafka-bootstrap.platform.svc
+  # The bootstrap service, and every broker as advertised to the clients
+  # (<pod>.events-kafka-brokers.platform.svc).
+  dnsNames:
+    - events-kafka-bootstrap
+    - events-kafka-bootstrap.platform
+    - events-kafka-bootstrap.platform.svc
+    - events-kafka-bootstrap.platform.svc.cluster.local
+    - "*.events-kafka-brokers"
+    - "*.events-kafka-brokers.platform"
+    - "*.events-kafka-brokers.platform.svc"
+    - "*.events-kafka-brokers.platform.svc.cluster.local"
+  usages:
+    - digital signature
+    - server auth
+  duration: 2160h # 90 days
+  renewBefore: 720h # 30 days
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    encoding: PKCS8
+    rotationPolicy: Always
+  issuerRef:
+    kind: ClusterIssuer
+    name: lab-ca
+    group: cert-manager.io

@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# The namespace itself is declared in namespaces/platform/ and applied first.
+# The Strimzi operator (system/strimzi/base) and the lab's CA
+# (system/cert-manager/issuers) must be running before this is applied.
+namespace: platform
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: kafka
+
+resources:
+  - events-kafka-listener.certificate.yaml
+  - kafka-clients-ca-ref.certificate.yaml
+  - events.kafka.yaml
+  - dual-role.kafkanodepool.yaml
