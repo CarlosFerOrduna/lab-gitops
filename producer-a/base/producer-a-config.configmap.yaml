@@ -7,5 +7,3 @@ data:
   PORT: "3000"
   QUEUE_HOST: valkey-queue
   QUEUE_PORT: "6379"
-  # Used only by the worker. The processor lives in another namespace.
-  PROCESSOR_URL: http://processor.platform
