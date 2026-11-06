@@ -1,0 +1,35 @@
+# One node that is both KRaft controller and broker.
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: dual-role
+  labels:
+    strimzi.io/cluster: events
+spec:
+  replicas: 1
+  roles:
+    - controller
+    - broker
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        class: local-path
+        # local-path does not enforce the size: it is a directory on the node.
+        size: 2Gi
+        # Deleting the cluster or the pool keeps the data.
+        deleteClaim: false
+        kraftMetadata: shared
+  # A fixed heap, and memory request = limit: the JVM never grows past what
+  # the node reserved for it. The rest of the limit is page cache and off-heap.
+  jvmOptions:
+    -Xms: 512m
+    -Xmx: 512m
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      cpu: "1"
+      memory: 1Gi

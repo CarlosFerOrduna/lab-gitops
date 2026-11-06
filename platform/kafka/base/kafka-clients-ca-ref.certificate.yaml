@@ -1,0 +1,26 @@
+# Only a carrier for kafka-clients-ca in platform: its ca.crt is that root
+# alone, which the Kafka resource reads (clientsCa.caCertRef) as the only CA
+# the brokers trust for clients. Its own certificate and key are not used.
+# It has no KafkaUser, so as a Kafka client it would be allowed nothing.
+# cert-manager keeps it, and so its ca.crt, current across renewals and
+# rebuilds. If kafka-clients-ca is replaced with a new key, this Certificate
+# must be renewed to carry the new root (procedure pending, stage 11).
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: kafka-clients-ca-ref
+spec:
+  secretName: kafka-clients-ca-ref
+  commonName: kafka-clients-ca-ref
+  usages:
+    - digital signature
+  duration: 2160h # 90 days
+  renewBefore: 720h # 30 days
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  issuerRef:
+    kind: ClusterIssuer
+    name: kafka-clients-ca
+    group: cert-manager.io
