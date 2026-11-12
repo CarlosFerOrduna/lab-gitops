@@ -14,9 +14,11 @@ spec:
       labels:
         app.kubernetes.io/name: producer-b-worker
     spec:
+      # fsGroup lets the node user (1000) read the mounted Kafka keys.
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000
+        fsGroup: 1000
         runAsNonRoot: true
       # On SIGTERM the worker finishes its jobs in progress (worker.close()) before exiting.
       terminationGracePeriodSeconds: 30
@@ -30,20 +32,31 @@ spec:
           envFrom:
             - configMapRef:
                 name: producer-b-config
+            - configMapRef:
+                name: producer-b-worker-config
           env:
             - name: QUEUE_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: valkey-queue-auth
                   key: password
-          # No Service and no readiness: the worker takes no traffic. With the processor down
-          # it keeps retrying, so liveness only checks that the process answers.
+          # No Service and no readiness: the worker takes no traffic. With Kafka down it keeps
+          # retrying through the queue, and at startup it keeps serving /health while it waits
+          # for Kafka (at most 120 s, then it exits with 1), so liveness only checks that the
+          # process answers.
           livenessProbe:
             httpGet:
               path: /health
               port: http
             periodSeconds: 10
             failureThreshold: 3
+          volumeMounts:
+            - name: kafka-client
+              mountPath: /etc/kafka/client
+              readOnly: true
+            - name: lab-root-ca
+              mountPath: /etc/kafka/root
+              readOnly: true
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -54,3 +67,23 @@ spec:
               memory: 128Mi
             limits:
               memory: 256Mi
+      volumes:
+        # producer-b's Kafka identity (CN=producer-b): its certificate and key only.
+        - name: kafka-client
+          secret:
+            secretName: kafka-client-tls
+            defaultMode: 0440
+            items:
+              - key: tls.crt
+                path: tls.crt
+              - key: tls.key
+                path: tls.key
+        # The lab's root, to verify the brokers. Only ca.crt: the key of lab-root-ca-ref is
+        # never mounted.
+        - name: lab-root-ca
+          secret:
+            secretName: lab-root-ca-ref
+            defaultMode: 0440
+            items:
+              - key: ca.crt
+                path: ca.crt

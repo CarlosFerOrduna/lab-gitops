@@ -23,6 +23,7 @@ resources:
   - valkey-cache.deployment.yaml
   - producer-b.deployment.yaml
   - producer-b.service.yaml
+  - producer-b-worker-config.configmap.yaml
   - producer-b-worker.deployment.yaml
   - kafka-client.certificate.yaml
   - lab-root-ca-ref.certificate.yaml
@@ -31,4 +32,4 @@ resources:
 # (git rev-parse HEAD^{tree}). CI updates it here in the CI stage.
 images:
   - name: ghcr.io/carlosferorduna/lab-producer-b
-    newTag: e8a5f866d100186fbdd1089786ef7999fdb82e98
+    newTag: 37445889fd2b42e6fe0c2d7bcbc783bf6795cb70

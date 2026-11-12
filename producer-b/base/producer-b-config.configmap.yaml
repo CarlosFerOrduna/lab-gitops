@@ -13,5 +13,3 @@ data:
   QUEUE_PORT: "6379"
   CACHE_HOST: valkey-cache
   CACHE_PORT: "6379"
-  # Used only by the worker. The processor lives in another namespace.
-  PROCESSOR_URL: http://processor.platform
